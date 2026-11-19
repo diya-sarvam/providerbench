@@ -279,3 +279,7 @@ providerbench/
   mock.py              fake providers for development
 tests/                 grader tests (offline); PB_NET=1 also loads every suite
 ```
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE). Third-party notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
