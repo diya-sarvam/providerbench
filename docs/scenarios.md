@@ -76,7 +76,7 @@ Parameters: sessions, ISL, OSL, cache-hit target, turns, new input per later tur
 |---|---|---|
 | `tools` | [BFCL v4](https://github.com/ShishirPatil/gorilla/tree/main/berkeley-function-call-leaderboard): simple, multiple, parallel, parallel-multiple, irrelevance | Function names, number of calls, every argument within the allowed values; irrelevance = no call |
 | `math` | [MATH-500](https://huggingface.co/datasets/HuggingFaceH4/MATH-500) and [AIME 2025](https://huggingface.co/datasets/MathArena/aime_2025) | The last `\boxed{}` against the reference, LaTeX-normalised and compared numerically |
-| `gpqa` | [GPQA-Diamond](https://github.com/idavidrein/gpqa), choices shuffled per seed | The answer letter |
+| `gpqa` | [GPQA-Diamond](https://github.com/idavidrein/gpqa), choices shuffled per seed; max output tokens is a setting (default 64K, e.g. `gpqa:n=198;max_tokens=88000`) | The answer letter |
 | `robustness` | Serving-bug probes | Literal `<think>` tags round-trip, `json_schema` output validates, parallel tool calls, clean greetings |
 
 Grading is deterministic code; there is no LLM judge. A quality gap is only called a win when it is

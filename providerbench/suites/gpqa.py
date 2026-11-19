@@ -62,8 +62,16 @@ class GPQASuite(Suite):
     default_n = 20
     est_prompt_tokens = 400
     est_output_tokens = 6000
+    default_max_tokens = 65536
+
+    def params(self):
+        return [{"key": "n", "label": "Tasks", "type": "int", "default": self.default_n, "min": 1, "max": 198},
+                {"key": "max_tokens", "label": "Max output tokens", "type": "int", "default": self.default_max_tokens,
+                 "min": 1024, "max": 131072,
+                 "help": "Reasoning plus answer. Capped at what fits in the model's context."}]
 
     def load(self, rng, n, **params):
+        max_tokens = int(params.get("max_tokens") or self.default_max_tokens)
         rows = load_rows()
         tasks = []
         for i in sorted(rng.sample(range(len(rows)), min(n, len(rows)))):
@@ -77,7 +85,7 @@ class GPQASuite(Suite):
                 id="gpqa/" + r["Record ID"], suite=self.name,
                 messages=[{"role": "user", "content": PROMPT.format(question=r["Question"].strip(),
                                                                     choices=choices)}],
-                max_tokens=32768, expect={"answer": correct},
+                max_tokens=max_tokens, expect={"answer": correct},
                 meta={"record_id": r["Record ID"], "domain": r.get("High-level domain", "")}))
         return tasks
 
