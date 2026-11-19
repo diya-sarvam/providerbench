@@ -7,7 +7,7 @@ models.toml           canonical model names, aliases, OpenRouter slugs        in
     runs/             run history: run.json, tasks.json, one .jsonl per provider
     uploads/          your JSONL datasets
     prices.json, calibration.json, cache/, fonts/
-Nothing private is ever written inside the repository, so a push or a deploy cannot carry it.
+Nothing private is ever written inside the repository, so a push cannot carry it.
 
 A target is "<provider id>:<model>", model = a canonical name or the provider's raw model id.
 """

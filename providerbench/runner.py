@@ -95,6 +95,40 @@ def with_nonce(messages, nonce):
     return msgs
 
 
+def tools_with_nonce(tools, nonce):
+    """Stamp the run tag into the first tool's description too: many chat templates render tool
+    schemas before the system prompt, so a tag only in the system prompt would let identical tool
+    blocks be served from an earlier run's cache."""
+    if not tools:
+        return tools
+    tools = [dict(x) for x in tools]
+    fn = dict(tools[0].get("function") or {})
+    fn["description"] = "Session %s. %s" % (nonce, fn.get("description") or "")
+    tools[0] = dict(tools[0], function=fn)
+    return tools
+
+
+CACHEABLE_V = 2
+
+
+def cacheable_tokens(text, prompt_tokens, prefilled, sent_at):
+    """Tokens of this prompt that an earlier request in the run had already prefilled.
+    prefilled: [(first_token_at, text, prompt_tokens)]. Uses the earlier request's own token count for
+    the shared part (exact when the whole earlier request is a prefix, as in multi-turn sessions);
+    falls back to the character share of this prompt. Never more than this prompt."""
+    if not text or not prompt_tokens:
+        return None
+    best_l, best_tok = 0, 0
+    for at, prev, prev_tok in prefilled:
+        if at > sent_at:
+            continue
+        n = lcp(text, prev)
+        if n > best_l:
+            best_l = n
+            best_tok = prev_tok * n / len(prev) if prev_tok and prev else prompt_tokens * n / len(text)
+    return int(min(prompt_tokens, best_tok))
+
+
 def render(body):
     """The request as one string in prompt order (tools, then messages), for prefix comparison."""
     parts = [json.dumps(body.get("tools") or [], sort_keys=True)]
@@ -243,7 +277,7 @@ def estimate(spec, tasks=None):
 
 class Run:
     def __init__(self, spec, tasks=None):
-        self.spec = spec
+        self.spec = dict(spec, tool_tag=True)
         self.created = time.time()
         self.seed = spec.get("seed")
         if self.seed in (None, ""):
@@ -433,7 +467,7 @@ class Run:
             room = int(limit - len(json.dumps(body["messages"])) / 3.6 - 512)
             body["max_tokens"] = max(1024, min(task.max_tokens, room))
         if task.tools:
-            body["tools"] = task.tools
+            body["tools"] = tools_with_nonce(task.tools, self.id)
         for k in ("temperature", "top_p"):
             if self.spec.get(k) is not None:
                 body[k] = self.spec[k]
@@ -443,8 +477,7 @@ class Run:
         # already prefilled in this run (requests whose first token arrived before this one is sent)
         text, sent_at = render(body), time.time()
         st = self.state[tgt.key]
-        best = max((lcp(text, prev) for at, prev in list(st["prefilled"]) if at <= sent_at), default=0)
-        possible_frac = best / len(text) if text else 0.0
+        prefilled_now = list(st["prefilled"])
         retries, reply = 0, None
         while True:
             # each request streams into its own dict; the UI shows the most recently started one
@@ -457,9 +490,9 @@ class Run:
                 time.sleep(2 * 3 ** (retries - 1))
                 continue
             break
+        possible = cacheable_tokens(text, reply.get("prompt_tokens"), prefilled_now, sent_at)
         if reply.get("ttft_ms") is not None:
-            st["prefilled"].append((sent_at + reply["ttft_ms"] / 1000, text))
-        possible = int(possible_frac * reply["prompt_tokens"]) if reply.get("prompt_tokens") else None
+            st["prefilled"].append((sent_at + reply["ttft_ms"] / 1000, text, reply.get("prompt_tokens")))
         price = pricing.price_for(tgt, self.prices)
         cost = pricing.cost_usd(price, reply.get("prompt_tokens"), reply.get("cached_tokens"),
                                 reply.get("completion_tokens"), self.prices) if reply.get("completion_tokens") else None
@@ -485,7 +518,7 @@ class Run:
                                                  "prompt_tokens", "cached_tokens", "completion_tokens",
                                                  "reasoning_tokens", "usage_reported", "cache_reported",
                                                  "reasoning_estimated")},
-                    cost_usd=cost, cache_possible_tokens=possible, content=msg.get("content", ""), reasoning=msg.get("reasoning", ""),
+                    cost_usd=cost, cache_possible_tokens=possible, cache_possible_v=CACHEABLE_V, content=msg.get("content", ""), reasoning=msg.get("reasoning", ""),
                     tool_calls=msg.get("tool_calls") or [])
 
     @staticmethod
@@ -540,20 +573,32 @@ _REC_CACHE = {}
 
 
 def _backfill_cache_possible(run_id, recs):
-    """Runs recorded before cache_possible_tokens existed: recompute it from the frozen requests
-    and the recorded timings, exactly as the runner does live."""
-    if all("cache_possible_tokens" in r for r in recs if r.get("prompt_tokens")):
+    """Recompute cache_possible_tokens with the current method (runs recorded before it, or with an
+    older estimate), from the frozen requests and the recorded timings, as the runner does live."""
+    if all(r.get("cache_possible_v") == CACHEABLE_V for r in recs if r.get("prompt_tokens")):
         return recs
     tasks = _tasks_of(run_id)
+    snap_path = RESULTS / run_id / "run.json"
+    try:
+        stamped = json.loads(snap_path.read_text()).get("spec", {}).get("tool_tag", False)
+    except (OSError, ValueError):
+        stamped = False
     pre = []
     for r in sorted(recs, key=lambda r: r.get("t") or 0):
         task = tasks.get(r["task_id"])
         if not task or not r.get("prompt_tokens") or r.get("ttft_ms") is None:
             continue
-        text = render({"messages": with_nonce(task["messages"], run_id), "tools": task.get("tools")})
-        best = max((lcp(text, prev) for at, prev in pre if at <= r["t"]), default=0)
-        r["cache_possible_tokens"] = int(best / len(text) * r["prompt_tokens"]) if text else 0
-        pre.append((r["t"] + r["ttft_ms"] / 1000, text))
+        if (task.get("meta") or {}).get("loop") == "closed" and task.get("turn"):
+            msgs = None                    # closed loop: request depends on the previous reply
+        else:
+            msgs = with_nonce(task["messages"], run_id)
+        if msgs is None:
+            continue
+        tools = tools_with_nonce(task.get("tools"), run_id) if stamped else task.get("tools")
+        text = render({"messages": msgs, "tools": tools})
+        r["cache_possible_tokens"] = cacheable_tokens(text, r["prompt_tokens"], pre, r["t"])
+        r["cache_possible_v"] = CACHEABLE_V
+        pre.append((r["t"] + r["ttft_ms"] / 1000, text, r["prompt_tokens"]))
     return recs
 
 
@@ -750,7 +795,7 @@ def trace(run_id, target, task_id):
         body = {"model": tg.get("model_id"), "messages": sent,
                 "max_tokens": task["max_tokens"], "stream": True}
         if task.get("tools"):
-            body["tools"] = task["tools"]
+            body["tools"] = tools_with_nonce(task["tools"], run_id) if (snap.get("spec") or {}).get("tool_tag") else task["tools"]
         body.update(task.get("extra_body") or {})
         try:
             prov = config.load_providers().get(tg.get("provider"))

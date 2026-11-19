@@ -1987,7 +1987,7 @@ function filtered() {
     var parts = k.split(":"), m = MET[parts[0]], which = parts[1];
     var val = function (row) {
       if (RQ.mode === "flat") { var x = row.xs[RQ.target]; return x ? m.get(x) : null; }
-      if (which === "d") { var a = row.xs[0] && m.get(row.xs[0]), b = row.xs[1] && m.get(row.xs[1]); return a == null || b == null ? null : b - a; }
+      if (which === "d") { var a = row.xs[0] && m.get(row.xs[0]), b = row.xs[1] && m.get(row.xs[1]); return a == null || b == null ? null : a - b; }
       var x2 = row.xs[+which]; return x2 ? m.get(x2) : null;
     };
     rows.sort(function (a, b) { var va = val(a), vb = val(b); if (va == null && vb == null) return a.idx - b.idx; if (va == null) return 1; if (vb == null) return -1; return (va - vb) * dir; });
@@ -2017,10 +2017,10 @@ function cellBars(row, key, mx) {
   var a = row.xs[0] && m.get(row.xs[0]), b = row.xs[1] && m.get(row.xs[1]), delta = "";
   if (m.better && a != null && b != null && a !== b) {
     var bWorse = m.better === "lo" ? b > a : b < a;
-    var diff = Math.abs(b - a);
+    var diff = Math.abs(a - b);
     var txt = key === "ttft" || key === "e2e" ? ms(diff) : key === "cost" ? money(diff) : Math.round(diff) + "";
     var rel = Math.max(a, b) / Math.max(1e-9, Math.min(a, b));
-    if (rel >= 1.05) delta = '<div class="delta ' + (bWorse ? "worse" : "better") + '">B ' + (b > a ? "+" : "−") + txt + "</div>";
+    if (rel >= 1.05) delta = '<div class="delta ' + (bWorse ? "better" : "worse") + '" title="A minus B">' + (a > b ? "+" : "−") + txt + "</div>";
   }
   return '<td class="v mcell">' + lines + delta + "</td>";
 }
@@ -2046,11 +2046,11 @@ function midId(id) { return id.length > 26 ? id.slice(0, 13) + "…" + id.slice(
 function deltaCell(row, key, cls) {
   var m = MET[key], a = row.xs[0] && m.get(row.xs[0]), b = row.xs[1] && m.get(row.xs[1]);
   if (a == null || b == null) return '<td class="dl ' + (cls || "") + '" rowspan="2"></td>';
-  var diff = b - a, rel = Math.max(Math.abs(a), Math.abs(b)) / Math.max(1e-9, Math.min(Math.abs(a), Math.abs(b)));
+  var diff = a - b, rel = Math.max(Math.abs(a), Math.abs(b)) / Math.max(1e-9, Math.min(Math.abs(a), Math.abs(b)));
   var bWins = m.better === "lo" ? b < a : b > a;
   var col = rel < 1.10 || a === b ? "" : bWins ? " pb-win" : " pa-win";
   var txt = key === "ttft" || key === "e2e" ? (diff < 0 ? "−" : "+") + ms(Math.abs(diff)) : key === "cost" ? (diff < 0 ? "−" : "+") + money(Math.abs(diff)) : (diff < 0 ? "−" : "+") + Math.round(Math.abs(diff));
-  return '<td class="dl ' + (cls || "") + col + '" rowspan="2" title="B minus A">' + txt + "</td>";
+  return '<td class="dl ' + (cls || "") + col + '" rowspan="2" title="A minus B">' + txt + "</td>";
 }
 function barNum(v, mx, fmt, i) {
   var w = v == null ? 0 : Math.max(2, 48 * v / mx);
@@ -2070,8 +2070,8 @@ function drawReqs() {
     h = '<table class="ptable"><colgroup><col class="w-task"><col class="w-ver"><col class="w-num"><col class="w-dl"><col class="w-num2"><col class="w-dl2">' +
       '<col class="w-num c-e2e"><col class="w-dl c-e2e"><col class="w-prompt c-prompt"><col class="w-out"><col class="w-cost"><col class="w-dl"></colgroup>' +
       '<thead><tr><th class="sortable" data-sort="order">Task' + (RQ.sort.key === "order" ? "" : " ↺") + "</th><th>Verdict</th>" +
-      th("ttft:0", "TTFT") + th("ttft:d", "Δ") + th("tps:0", "tok/s") + th("tps:d", "Δ") + th("e2e:0", "E2E", "c-e2e") + th("e2e:d", "Δ", "c-e2e") +
-      '<th class="v c-prompt">Prompt · cached</th>' + th("out:0", "Output") + th("cost:0", "Cost") + th("cost:d", "Δ") + "</tr></thead>";
+      th("ttft:0", "TTFT") + th("ttft:d", "A − B") + th("tps:0", "tok/s") + th("tps:d", "A − B") + th("e2e:0", "E2E", "c-e2e") + th("e2e:d", "A − B", "c-e2e") +
+      '<th class="v c-prompt">Prompt · cached</th>' + th("out:0", "Output") + th("cost:0", "Cost") + th("cost:d", "A − B") + "</tr></thead>";
     h += page.length ? page.map(function (row) {
       var sub = function (i) {
         var x = row.xs[i];

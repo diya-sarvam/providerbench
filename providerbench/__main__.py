@@ -1,5 +1,6 @@
 """pb: A/B test inference providers on the same tasks.
 
+    pb setup                                        (first run: checks, data folder, prices)
     pb serve [--port 8765] [--mock]
     pb run fireworks:glm-5.3-flash deepinfra:glm-5.3-flash --suites "agentic:n=5,turns=3" [--seed N] [--budget 2]
     pb run A B --suites "synthetic:n=50,isl=8000,osl=512,cache_hit=0.6,turns=4"
@@ -20,6 +21,7 @@
     pb export <run-id> [--format zip|md|html] [--out f] (every request and reply: raw, Markdown, or a side-by-side HTML report)
 """
 import argparse
+import os
 import json
 import re
 import sys
@@ -151,10 +153,42 @@ def cmd_run(a):
         print("\nresults: %s/" % (runner.RESULTS / run.id))
 
 
+def setup():
+    """First-run check: what works, what is missing, what to do next."""
+    import platform
+    ok = lambda s: print("  \u2713 " + s)      # noqa: E731
+    todo = lambda s: print("  \u2022 " + s)    # noqa: E731
+    print("providerbench setup\n")
+    ok("Python %s" % platform.python_version())
+    home = config.home()
+    os.chmod(home, 0o700)
+    ok("private data folder %s (owner-only; set PB_HOME to move it)" % home)
+    config.load_env()
+    provs = config.load_providers()
+    have = [p for p in provs.values() if p.key_env and p.key]
+    if have:
+        ok("keys saved: %s" % ", ".join(p.name for p in have))
+    else:
+        todo("no provider keys yet: ./pb keys set <provider>   (providers: %s)" % ", ".join(sorted(provs)))
+    print("  fetching prices ...", flush=True)
+    try:
+        pricing.refresh(log=lambda *_: None)
+        rows = pricing.rows()
+        ok("prices for %d provider/model pairs (./pb prices)" % len(rows))
+    except Exception as e:  # noqa: BLE001
+        todo("could not fetch prices now (%s); runs still work, costs show once prices exist" % e)
+    print("\nNext:")
+    print("  ./pb serve --mock      try everything with two fake providers, no keys, no cost")
+    print("  ./pb serve             the web UI with your providers (http://127.0.0.1:8765)")
+    print("  ./pb run --help        run from the terminal")
+    print("  docs/getting-started.md")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="pb", description="A/B test inference providers on the same tasks.")
     sub = ap.add_subparsers(dest="cmd")
 
+    sub.add_parser("setup", help="check Python, create ~/.providerbench, show keys, fetch prices")
     s = sub.add_parser("serve", help="local web UI")
     s.add_argument("--port", type=int, default=8765)
     s.add_argument("--mock", action="store_true", help="add two local fake providers (no keys, no spend)")
@@ -163,7 +197,7 @@ def main(argv=None):
     r.add_argument("targets", nargs="*", help="provider:model, e.g. fireworks:glm-5.3-flash")
     r.add_argument("--suites", default="tools,math",
                    help="'tools=30,math=20' or 'agentic:n=5,turns=3;synthetic:isl=2000,osl=256' (see pb suites)")
-    r.add_argument("--data", help="your own JSONL (sessions or requests), replayed by the agentic suite")
+    r.add_argument("--data", help="your own JSONL (sessions or requests), run as the 'Your data' scenario")
     r.add_argument("--preview", action="store_true", help="print the sample and exit; nothing is sent")
     r.add_argument("--temperature", type=float)
     r.add_argument("-n", type=int, help="count for suites given without =count")
@@ -202,7 +236,7 @@ def main(argv=None):
     pr.add_argument("--currency", default="USD")
 
     sub.add_parser("suites", help="list suites")
-    ex = sub.add_parser("export", help="write a run's traces (run.json, tasks.json, *.jsonl) to a zip")
+    ex = sub.add_parser("export", help="write a run's traces: raw zip, readable Markdown, or an HTML report")
     ex.add_argument("run_id")
     ex.add_argument("--out")
     ex.add_argument("--format", choices=("zip", "md", "html"), default="zip",
@@ -214,7 +248,9 @@ def main(argv=None):
 
     a = ap.parse_args(argv)
     config.migrate_legacy()
-    if a.cmd == "serve":
+    if a.cmd == "setup":
+        setup()
+    elif a.cmd == "serve":
         server.serve(a.port, a.mock)
     elif a.cmd == "run":
         if a.mock:

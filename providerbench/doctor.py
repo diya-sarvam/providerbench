@@ -1,4 +1,4 @@
-"""`pb doctor`: make sure nothing private is inside the repository before it is pushed or deployed.
+"""`pb doctor`: make sure nothing private is inside the repository before it is pushed.
 
 Checks every file git would publish (tracked + untracked-but-not-ignored):
   - no file that holds private data by its path (.env*, run history, uploads, licensed fonts, ...)
