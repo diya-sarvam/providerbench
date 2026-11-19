@@ -28,6 +28,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Loaded on demand from a CDN (not bundled)
+
+- KaTeX 0.16.11 (MIT): renders math in replies.
+- html-to-image 1.11.11 (MIT): renders **Copy image** snapshots.
+
 ## Fonts
 
 The UI asks for the Matter and Season Mix typefaces and falls back to system fonts. Those font files are licensed and are **not** part of this repository; they are only used when present in `~/.providerbench/fonts/`.

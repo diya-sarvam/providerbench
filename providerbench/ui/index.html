@@ -1054,6 +1054,7 @@ td.v, th.v, .ptable td.v, .ptable td.dl, .mline .mv, .hrow .num2, .cmetrics b, .
 
 <script src="/md.js"></script>
 <script src="/charts.js"></script>
+<script src="/snap.js"></script>
 <script>
 /* Icons: Hugeicons free set (@hugeicons/core-free-icons 4.4.0), MIT License, Copyright (c) 2025 Hugeicons.
    Path data copied as SVG so the UI needs no build step or network. https://github.com/hugeicons/hugeicons */
@@ -1821,7 +1822,7 @@ function turnTable(ts) {
   var tk = Object.keys(turns).sort(function (a, b) { return a - b; });
   if (tk.length < 2) return "";
   var h = '<h2>Cache by turn</h2><div class="small muted">Measured hit and the most that could have been cached, per turn of each session.</div>' +
-    "<div class='scroll-x'><table class='zebra' style='margin-top:8px'><thead><tr><th>Turn</th>" + ts.map(function (t, i) { return '<th class="v ' + pcls(i) + '"><span class="pname">' + esc(nm(t)) + "</span> hit / cacheable</th>"; }).join("") + "</tr></thead><tbody>";
+    "<div class='scroll-x'><table class='zebra turns' style='margin-top:8px'><thead><tr><th>Turn</th>" + ts.map(function (t, i) { return '<th class="v ' + pcls(i) + '"><span class="pname">' + esc(nm(t)) + "</span> hit / cacheable</th>"; }).join("") + "</tr></thead><tbody>";
   tk.forEach(function (k) {
     h += "<tr><td>" + (+k + 1) + "</td>" + bt.map(function (b) {
       var x = b && b[k];

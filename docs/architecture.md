@@ -28,6 +28,7 @@ providerbench/
   ui/index.html           the whole web UI
   ui/charts.js            the chart kit (SVG, no dependencies)
   ui/md.js                safe Markdown renderer + KaTeX loader for math
+  ui/snap.js              "Copy image" buttons: element → PNG → clipboard
   ui/report.html          template of the self-contained HTML report
   mock.py, mock_providers/  two fake providers for `--mock`
 ```

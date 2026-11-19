@@ -110,7 +110,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
-            elif p in ("/md.js", "/charts.js"):
+            elif p in ("/md.js", "/charts.js", "/snap.js"):
                 data = (UI.parent / p.lstrip("/")).read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/javascript; charset=utf-8")

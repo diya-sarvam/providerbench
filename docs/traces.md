@@ -24,6 +24,13 @@ Progress is written to disk every few seconds, so History has it even if the ser
 - **Trace:** exactly what was sent (messages with the run tag, tools, max_tokens, body options) and
   everything that came back (reasoning, content, tool calls, usage, timings, verdict, failure codes).
 
+## Copy as image
+
+Every scorecard, table, chart and History card has a **Copy image** button (top right, on hover). It
+renders that element as a PNG at 2× in your current theme, with a one-line caption (providers, model,
+scenario, size) and a small footer, and puts it on your clipboard, ready to paste into a post or a
+chat. If the browser blocks clipboard images, the PNG is downloaded instead.
+
 ## Exports
 
 | Export | What | Command |

@@ -560,6 +560,8 @@ def list_runs():
         live = RUNS.get(snap["id"])
         if live:
             snap = live.snapshot()
+        elif snap["status"] in ("running", "sampling", "starting"):
+            snap["status"] = "interrupted"     # the server that ran it has stopped
         if all(t["target"].startswith("mock-") for t in snap["targets"]) and os.environ.get("PB_MOCK") != "1":
             continue                         # runs against the fake providers only show in --mock mode
         out.append({"id": snap["id"], "created": snap["created"], "status": snap["status"],

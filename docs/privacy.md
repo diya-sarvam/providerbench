@@ -41,4 +41,4 @@ anything git would publish, and checks the data folder is private. `.gitignore` 
 | The providers you test | the benchmark requests, with your key |
 | Hugging Face / GitHub | dataset downloads (SWE-smith, MATH-500, AIME, BFCL, GPQA, agent prompts), cached locally |
 | Provider pricing pages, OpenRouter, open.er-api.com | price and exchange-rate lookups |
-| cdn.jsdelivr.net | KaTeX, only when a reply contains math (the UI works without it) |
+| cdn.jsdelivr.net | KaTeX, only when a reply contains math; html-to-image, only when you click **Copy image** (the UI works without either) |
