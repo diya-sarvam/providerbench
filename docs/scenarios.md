@@ -14,8 +14,14 @@ exact sample first.
 
 ## Trace replay
 
-Real SWE-agent bug-fix sessions from [SWE-smith](https://huggingface.co/datasets/SWE-bench/SWE-smith-trajectories),
-with their real tool outputs.
+Real agent sessions with their real tool outputs, from either built-in source (`source=`):
+
+- `swe-smith` (default): SWE-agent bug-fix sessions from [SWE-smith](https://huggingface.co/datasets/SWE-bench/SWE-smith-trajectories).
+- `agentx`: SemiAnalysis' raw Claude Code sessions on SWE-bench tasks,
+  [semianalysisai/swebench-cc-traces-raw](https://huggingface.co/datasets/semianalysisai/swebench-cc-traces-raw):
+  Claude Code's real system prompt and 40 tool definitions (~50k tokens before the first message). Only 10
+  sessions, so larger samples reuse a session at different steps (never the same step twice). Claude's
+  thinking blocks are dropped in the conversion to OpenAI format.
 
 - From each sampled session, a window of consecutive agent steps is chosen: context starts above
   `min_context` and the last step fits under `max_context`.

@@ -1,8 +1,9 @@
 """Trace replay: real agent sessions, replayed step by step, to measure serving speed, cost and
 cache behaviour on realistic agent traffic.
 
-Sources: SWE-smith (real SWE-agent bug-fix sessions with real tool output, built in) or your own
-JSONL (see datasets.py). For each sampled session a window of `turns` consecutive assistant steps is
+Sources: SWE-smith (real SWE-agent bug-fix sessions with real tool output, built in), AgentX (SemiAnalysis'
+raw Claude Code sessions on SWE-bench tasks, with Claude Code's real system prompt and tools, built in), or
+your own JSONL (see datasets.py). For each sampled session a window of `turns` consecutive assistant steps is
 chosen so that the context at the first step is >= min_context and at the last <= max_context:
 
     turn 0: session up to step k        (cold prefix)
@@ -28,6 +29,8 @@ from ..failures import check_output, check_tool_calls
 from .base import Suite, Task, Verdict
 
 DATASET, SPLIT = "SWE-bench/SWE-smith-trajectories", "tool"
+AGENTX = "semianalysisai/swebench-cc-traces-raw"          # SemiAnalysis AgentX: raw Claude Code sessions, full text
+AGENTX_URL = "https://huggingface.co/datasets/%s/resolve/main/data/train.jsonl" % AGENTX
 MAX_TOOL_OUTPUT_CHARS = 6_000
 CHARS_PER_TOKEN = 3.6
 MAX_PROMPT_TOKENS = 60_000
@@ -262,6 +265,65 @@ def plan_window(rng, conv, base_tokens, turns, min_ctx, max_ctx):
     return (steps, rng.choice(ok)) if ok else None
 
 
+def _cc_text(content):
+    if isinstance(content, str):
+        return content
+    return "\n".join(b.get("text", "") for b in content or [] if isinstance(b, dict) and "text" in b)
+
+
+def convert_claude_code(req):
+    """One Anthropic Messages request (system, tools, messages) -> (OpenAI messages, OpenAI tools).
+    Thinking blocks are dropped; tool_use -> tool_calls; tool_result -> role "tool"."""
+    msgs = []
+    system = "\n".join(b.get("text", "") for b in req.get("system") or []
+                       if not b.get("text", "").startswith("x-anthropic-billing-header"))
+    if system:
+        msgs.append({"role": "system", "content": system})
+    for m in req.get("messages") or []:
+        c = m.get("content")
+        blocks = [{"type": "text", "text": c}] if isinstance(c, str) else (c or [])
+        if m.get("role") == "assistant":
+            text = "\n".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+            calls = [{"id": b["id"], "type": "function",
+                      "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
+                     for b in blocks if b.get("type") == "tool_use"]
+            if text or calls:
+                msgs.append(dict({"role": "assistant", "content": text}, **({"tool_calls": calls} if calls else {})))
+            continue
+        texts = []
+        for b in blocks:
+            if b.get("type") == "tool_result":
+                msgs.append({"role": "tool", "tool_call_id": b["tool_use_id"], "content": _cc_text(b.get("content"))})
+            elif b.get("type") == "text":
+                texts.append(b.get("text", ""))
+        if texts:
+            msgs.append({"role": "user", "content": "\n".join(texts)})
+    tools = [{"type": "function", "function": {"name": t["name"], "description": t.get("description", ""),
+              "parameters": t.get("input_schema") or {"type": "object", "properties": {}}}}
+             for t in req.get("tools") or []]
+    return msgs, tools
+
+
+_AGENTX = None
+
+
+def agentx_sessions():
+    """[(session id, OpenAI messages, OpenAI tools)] from the AgentX raw traces (downloaded once, cached)."""
+    global _AGENTX
+    if _AGENTX is None:
+        out = []
+        for line in data.http_get(AGENTX_URL, timeout=300).splitlines():
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            mains = [q for q in r["requests"] if q.get("type") == "s"] or r["requests"]
+            last = max(mains, key=lambda q: len(q.get("messages") or []))
+            conv, tools = convert_claude_code(last)
+            out.append((r["id"], conv, tools))
+        _AGENTX = out
+    return _AGENTX
+
+
 class AgenticSuite(Suite):
     name = "agentic"
     title = "Trace replay"
@@ -289,7 +351,7 @@ class AgenticSuite(Suite):
             {"key": "n", "label": "Sessions", "type": "int", "default": 5, "min": 1, "max": 200,
              "help": "How many different sessions to sample."},
             {"key": "source", "label": "Traces", "type": "source", "default": "swe-smith",
-             "help": "Built-in SWE-smith sessions, or a JSONL you upload."},
+             "help": "Built-in SWE-smith or AgentX (Claude Code) sessions, or a JSONL you upload."},
             {"key": "turns", "label": "Steps per session", "type": "int", "default": 3, "min": 1, "max": 20,
              "help": "Consecutive agent steps replayed from each session."},
             {"key": "min_context", "label": "Min context (tokens)", "type": "int", "default": 8000, "min": 0, "max": 900000,
@@ -305,6 +367,8 @@ class AgenticSuite(Suite):
         src = p["source"] or "swe-smith"
         if src.startswith("upload:"):
             return self._load_upload(rng, n, src.split(":", 1)[1], p)
+        if src == "agentx":
+            return self._load_agentx(rng, n, p)
         return self._load_swe(rng, n, p)
 
     def _window_tasks(self, conv, tools, steps, j, p, group, meta):
@@ -352,6 +416,30 @@ class AgenticSuite(Suite):
             group = "swe/%s@%d" % (tid, steps[j])
             meta = {"label": row.get("instance_id") or tid, "traj_id": tid, "source": "swe-smith",
                     "url": "https://huggingface.co/datasets/%s/viewer/default/%s?row=%d" % (DATASET, SPLIT, offset)}
+            tasks += self._window_tasks(conv, tools, steps, j, p, group, meta)
+        return tasks
+
+    def _load_agentx(self, rng, n, p):
+        """AgentX raw Claude Code traces. Each session is its main agent's last request (Anthropic format),
+        converted to OpenAI chat format. There are only 10 sessions, so when n > 10 a session is reused
+        with a different window (no (session, step) pair twice)."""
+        sessions = agentx_sessions()
+        order = list(range(len(sessions)))
+        rng.shuffle(order)
+        tasks, used, attempts = [], set(), 0
+        while len(used) < n and attempts < n * 20:
+            idx = order[attempts % len(order)]
+            attempts += 1
+            sid, conv, tools = sessions[idx]
+            win = plan_window(rng, conv, est_tokens(tools), int(p["turns"]), int(p["min_context"]), int(p["max_context"]))
+            if win is None:
+                continue
+            steps, j = win
+            if (sid, steps[j]) in used:
+                continue
+            used.add((sid, steps[j]))
+            group = "agentx/%s@%d" % (sid, steps[j])
+            meta = {"label": sid, "source": "agentx", "url": "https://huggingface.co/datasets/%s" % AGENTX}
             tasks += self._window_tasks(conv, tools, steps, j, p, group, meta)
         return tasks
 
