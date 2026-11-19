@@ -1,0 +1,35 @@
+name = "Sarvam"
+base_url = "https://api.sarvam.ai/v2"
+key_env = "SARVAM_API_KEY"
+docs = "https://docs.sarvam.ai"
+
+[headers]
+x-session-affinity = "{session}"      # routes a session's turns to the same replica (prefix cache)
+
+[models]
+"glm-5.3-flash" = "glm5.3-flash"
+"deepseek-v4.1-flash" = "deepseekv4.1-flash-1017"
+"gemma-4-31b" = "gemma4"
+"glm-5.3" = "glm5.3"
+"kimi-k3.1-pro" = "kimi-k3.1-pro"
+"kimi-k3" = "kimi-k3"
+
+[thinking_off]                         # merged into the body when a run asks for thinking off
+"deepseek-v4.1-flash" = { reasoning_effort = "none" }
+
+[extra_body]                           # always merged, per model
+"gemma-4-31b" = { chat_template_kwargs = { enable_thinking = true } }
+
+[quirks]
+reasoning_field = "reasoning_content"
+cached_tokens = true
+
+[[pricing]]                            # tried in order; first that yields a price wins
+source = "scrape"
+url = "https://docs.sarvam.ai/api/getting-started/pricing.md"
+currency = "INR"
+# rows look like: | GLM-5.3 Flash (`glm5.3-flash`) | ₹13.5 | ₹2.5 | ₹45 | Serverless |
+pattern = '''(?m)^\|[^|\n`]*`(?P<model>[^`\n]+)`[^|\n]*\|\s*₹(?P<input>[\d.,]+)\s*\|\s*(?:₹(?P<cached_input>[\d.,]+)|—)\s*\|\s*₹(?P<output>[\d.,]+)\s*\|'''
+
+[[pricing]]
+source = "manual"

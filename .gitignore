@@ -1,0 +1,22 @@
+# Private data lives in ~/.providerbench, outside the repo. These rules are a second line of defence.
+.env
+.env.*
+!.env.example
+results/
+runs/
+data/
+uploads/
+.cache/
+cache/
+*.jsonl
+!examples/*.jsonl
+*.woff
+*.woff2
+*.ttf
+*.otf
+*.zip
+providerbench_*.zip
+__pycache__/
+*.pyc
+.DS_Store
+.vercel/

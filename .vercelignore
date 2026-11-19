@@ -1,0 +1,22 @@
+# Same rules as .gitignore: nothing private is uploaded on a Vercel deploy.
+.env
+.env.*
+!.env.example
+results/
+runs/
+data/
+uploads/
+.cache/
+cache/
+*.jsonl
+!examples/*.jsonl
+*.woff
+*.woff2
+*.ttf
+*.otf
+*.zip
+providerbench_*.zip
+__pycache__/
+*.pyc
+.DS_Store
+.vercel/

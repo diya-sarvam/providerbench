@@ -1,0 +1,19 @@
+name = "Fireworks"
+base_url = "https://api.fireworks.ai/inference/v1"
+key_env = "FIREWORKS_API_KEY"
+docs = "https://fireworks.ai/pricing"
+
+[models]
+"glm-5.3-flash" = "accounts/fireworks/models/glm-5p3-flash"
+"deepseek-v4.1-flash" = "accounts/fireworks/models/deepseek-v4p1-flash-1017"
+
+[[pricing]]
+source = "models_endpoint"         # some providers put prices in GET /models
+
+[[pricing]]
+source = "openrouter"              # this provider's listing on OpenRouter (same model, same provider)
+provider = "Fireworks"
+tag = "fireworks"
+
+[[pricing]]
+source = "manual"

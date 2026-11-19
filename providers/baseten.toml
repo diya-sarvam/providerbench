@@ -1,0 +1,19 @@
+name = "Baseten"
+base_url = "https://inference.baseten.co/v1"
+key_env = "BASETEN_API_KEY"
+docs = "https://www.baseten.co/pricing/"
+
+[models]
+"glm-5.3-flash" = "zai-org/GLM-5.3-Flash"
+"deepseek-v4.1-flash" = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+
+[[pricing]]
+source = "models_endpoint"         # some providers put prices in GET /models
+
+[[pricing]]
+source = "openrouter"              # this provider's listing on OpenRouter (same model, same provider)
+provider = "BaseTen"
+tag = "baseten"
+
+[[pricing]]
+source = "manual"

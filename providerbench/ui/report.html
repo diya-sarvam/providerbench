@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>providerbench report</title>
+<style>
+:root {
+  --bg: #fafafa; --card: #ffffff; --fg1: #141414; --fg2: #4d4d4d; --fg3: #6b6b6b; --line: #e6e6e6; --soft: #f3f3f3;
+  --a: #3842b4; --a-soft: #e8effc; --b: #b4460f; --b-soft: #feede6;
+  --ok: #41691e; --ok-soft: #f2f8eb; --bad: #b81514; --bad-soft: #fde7e2; --warn: #8c5a14; --warn-soft: #fff8e6;
+  --mono: "Matter Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Matter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Season Mix", Georgia, serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212; --card: #1c1c1c; --fg1: #ececec; --fg2: #c2c2c2; --fg3: #9a9a9a; --line: #333333; --soft: #262626;
+    --a: #9aa8ff; --a-soft: rgba(124, 150, 230, .14); --b: #f5a26b; --b-soft: rgba(240, 120, 60, .14);
+    --ok: #6fd39b; --ok-soft: rgba(63, 185, 129, .14); --bad: #ff7b72; --bad-soft: rgba(248, 81, 73, .14); --warn: #e3b341; --warn-soft: rgba(210, 153, 34, .14);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg1); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+header { padding: 28px 24px 18px; border-bottom: 1px solid var(--line); background: var(--card); }
+h1 { font: 500 26px/1.2 var(--serif); margin: 0 0 6px; }
+h1 .a { color: var(--a); } h1 .b { color: var(--b); } h1 .vs { color: var(--fg3); font-style: italic; font-weight: 400; padding: 0 6px; }
+.meta { color: var(--fg2); font-size: 13px; }
+.sum { margin-top: 14px; border-collapse: collapse; font-size: 13.5px; }
+.sum td, .sum th { padding: 5px 14px 5px 0; text-align: left; border-bottom: 1px solid var(--line); }
+.sum td.n { font-family: var(--mono); text-align: right; }
+.layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: calc(100vh - 160px); }
+nav { border-right: 1px solid var(--line); padding: 12px; position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; }
+nav input { width: 100%; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--fg1); font: inherit; font-size: 13px; margin-bottom: 8px; }
+nav a { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; color: var(--fg2); text-decoration: none; font: 12.5px/1.3 var(--mono); white-space: nowrap; }
+nav a .tid { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.md .math.display, .md div.math { display: block; overflow-x: auto; padding: 6px 0; margin: 4px 0 10px; }
+.md .math-raw { font: 12.5px var(--mono); background: var(--soft); padding: 1px 5px; border-radius: 5px; }
+nav a:hover, nav a.on { background: var(--soft); color: var(--fg1); }
+.dots { margin-left: auto; display: flex; gap: 3px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.dot.fail { background: var(--bad); } .dot.na { background: var(--line); }
+main { padding: 20px 24px 80px; min-width: 0; }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 20px; margin-bottom: 20px; scroll-margin-top: 12px; }
+.item h2 { font: 500 18px/1.3 var(--mono); margin: 0 0 4px; word-break: break-all; }
+.sub { color: var(--fg3); font-size: 13px; margin-bottom: 14px; }
+details.req > summary { cursor: pointer; color: var(--fg2); font-size: 13px; margin-bottom: 8px; }
+.msg { border-left: 3px solid var(--line); padding: 4px 0 4px 12px; margin: 8px 0; }
+.msg .role { font: 12px var(--mono); color: var(--fg3); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.msg.user { border-color: var(--a); } .msg.assistant { border-color: var(--b); } .msg.tool { border-color: var(--warn); }
+.cols { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 16px; margin-top: 14px; }
+.col { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
+.col .hd { padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; border-bottom: 1px solid var(--line); }
+.col.a .hd { background: var(--a-soft); } .col.b .hd { background: var(--b-soft); }
+.col .nm { font-weight: 600; } .col.a .nm { color: var(--a); } .col.b .nm { color: var(--b); }
+.col .mx { font: 12px var(--mono); color: var(--fg2); }
+.col .bd { padding: 12px 14px; overflow-x: auto; }
+.pill { display: inline-block; font: 11.5px var(--mono); padding: 1px 8px; border-radius: 999px; }
+.pill.pass { background: var(--ok-soft); color: var(--ok); } .pill.fail, .pill.error { background: var(--bad-soft); color: var(--bad); }
+.pill.skipped { background: var(--soft); color: var(--fg3); }
+.flag { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
+.err { background: var(--bad-soft); color: var(--bad); border-radius: 10px; padding: 8px 10px; font: 12.5px var(--mono); white-space: pre-wrap; margin-bottom: 10px; }
+details.think > summary { cursor: pointer; color: var(--fg3); font-size: 13px; }
+details.think .md { color: var(--fg2); font-size: 13.5px; }
+.md { font-size: 14.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.md h1, .md h2, .md h3, .md h4 { font-family: var(--sans); font-weight: 600; margin: 14px 0 6px; line-height: 1.3; }
+.md h1 { font-size: 19px; } .md h2 { font-size: 17px; } .md h3 { font-size: 15.5px; } .md h4, .md h5, .md h6 { font-size: 14.5px; }
+.md p { margin: 0 0 10px; } .md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
+.md code { font: 12.5px var(--mono); background: var(--soft); padding: 1px 5px; border-radius: 5px; }
+.md pre { background: var(--soft); border-radius: 10px; padding: 10px 12px; overflow: auto; max-height: 480px; }
+.md pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.5; white-space: pre; }
+.md blockquote { margin: 0 0 10px; padding-left: 12px; border-left: 3px solid var(--line); color: var(--fg2); }
+.md table { border-collapse: collapse; font-size: 13px; } .md th, .md td { border: 1px solid var(--line); padding: 4px 8px; }
+.md .md-table { overflow-x: auto; margin-bottom: 10px; } .md a { color: var(--a); }
+.calls pre { font: 12px/1.5 var(--mono); background: var(--soft); border-radius: 10px; padding: 10px 12px; overflow: auto; white-space: pre-wrap; }
+.raw { white-space: pre-wrap; font: 12.5px/1.5 var(--mono); }
+.toggle { float: right; font-size: 12px; color: var(--fg3); }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } nav { position: static; max-height: 260px; border-right: 0; border-bottom: 1px solid var(--line); } .cols { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header id="hdr"></header>
+<div class="layout"><nav id="nav"><input id="q" placeholder="Filter by task id, failed, flagged"><div id="list"></div></nav><main id="main"></main></div>
+<script>
+/*__MD__*/
+</script>
+<script>
+var D = /*__DATA__*/null;
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function ms(x) { return x == null ? "—" : x < 1000 ? Math.round(x) + " ms" : (x / 1000).toFixed(2) + " s"; }
+function usd(x) { return x == null ? "—" : x >= 0.995 ? "$" + x.toFixed(2) : x >= 0.01 ? "$" + x.toFixed(3) : "$" + x.toPrecision(2); }
+function pct(x) { return x == null ? "—" : (100 * x).toFixed(1) + "%"; }
+var RAW = false;
+function text(c) { return typeof c === "string" ? c : JSON.stringify(c, null, 1); }
+function body(s) { return RAW ? '<div class="raw">' + esc(s) + "</div>" : '<div class="md">' + pbMarkdown(s) + "</div>"; }
+function cls(i) { return i === 0 ? "a" : i === 1 ? "b" : ""; }
+function header() {
+  var t = D.targets, s = D.snap;
+  var h = "<h1>" + t.map(function (x, i) { return '<span class="' + cls(i) + '">' + esc(x.provider_name || x.target) + "</span>"; }).join('<span class="vs">vs</span>') + "</h1>";
+  h += '<div class="meta">' + esc(t[0] && t[0].model) + " · run " + esc(D.run) + " · " + new Date(s.created * 1000).toLocaleString() + " · seed " + esc(s.seed) + " · " + D.items.length + " requests" +
+    ' · <a href="#" id="rawt">' + (RAW ? "render Markdown" : "show raw text") + "</a></div>";
+  var rows = [["Cost total", function (m) { return usd(m.cost_usd); }], ["Cost per request", function (m) { return usd(m.cost_per_task_usd); }],
+    ["TTFT p50", function (m) { return ms(m.ttft_ms && m.ttft_ms.p50); }], ["Output tok/s p50", function (m) { return m.tps && m.tps.p50 ? Math.round(m.tps.p50) : "—"; }],
+    ["Cache reuse", function (m) { return pct(m.cache_reuse_pct); }], ["Errors", function (m) { return m.errored == null ? "—" : m.errored; }],
+    ["Flagged degenerate", function (m) { return m.review ? m.review.flagged : "—"; }]];
+  h += '<table class="sum"><tr><th></th>' + t.map(function (x, i) { return '<th class="' + cls(i) + '" style="color:var(--' + (cls(i) || "fg1") + ')">' + esc(x.provider_name || x.target) + "</th>"; }).join("") + "</tr>" +
+    rows.map(function (r) { return "<tr><td>" + r[0] + "</td>" + t.map(function (x) { return '<td class="n">' + r[1](x.summary || {}) + "</td>"; }).join("") + "</tr>"; }).join("") + "</table>";
+  document.getElementById("hdr").innerHTML = h;
+  document.getElementById("rawt").onclick = function (e) { e.preventDefault(); RAW = !RAW; draw(); };
+}
+function reply(r, i, t) {
+  if (!r) return '<div class="col ' + cls(i) + '"><div class="hd"><span class="nm">' + esc(t.provider_name || t.target) + '</span></div><div class="bd"><em>not run</em></div></div>';
+  var h = '<div class="col ' + cls(i) + '"><div class="hd"><span class="nm">' + esc(t.provider_name || t.target) + '</span><span class="pill ' + esc(r.verdict) + '">' + esc(r.verdict) + "</span>" +
+    '<span class="mx">TTFT ' + ms(r.ttft_ms) + " · " + (r.tps ? Math.round(r.tps) + " tok/s" : "—") + " · " + (r.completion_tokens == null ? "—" : r.completion_tokens) + " out · " + usd(r.cost_usd) + "</span></div><div class=\"bd\">";
+  if (r.codes && r.codes.length) h += '<div class="mx" style="margin-bottom:8px">' + esc(r.codes.join(", ")) + (r.detail ? " — " + esc(r.detail) : "") + "</div>";
+  if (r.error) h += '<div class="err">' + esc(r.error) + "</div>";
+  ((r.degen && r.degen.evidence) || []).forEach(function (e) { h += '<div class="flag"><b>Flagged ' + esc(e.detector) + "</b> in " + esc(e.channel) + ": " + esc(e.info) + (e.phrase ? ' — <code>' + esc(e.phrase.slice(0, 160)) + "</code>" : "") + "</div>"; });
+  if (r.reasoning) h += '<details class="think"><summary>Reasoning' + (r.reasoning_tokens ? " · " + r.reasoning_tokens + " tokens" : "") + "</summary>" + body(r.reasoning) + "</details>";
+  if (r.content) h += body(r.content);
+  if (r.tool_calls && r.tool_calls.length) h += '<div class="calls">' + r.tool_calls.map(function (c) {
+    var a = c.function.arguments; try { a = JSON.stringify(JSON.parse(a), null, 2); } catch (e) {}
+    return "<div class=\"mx\">tool call · <b>" + esc(c.function.name) + "</b></div><pre>" + esc(a) + "</pre>";
+  }).join("") + "</div>";
+  if (!r.content && !(r.tool_calls && r.tool_calls.length) && !r.error) h += "<em>empty reply</em>";
+  return h + "</div></div>";
+}
+function item(it, n) {
+  var h = '<section class="item" id="t' + n + '"><h2>' + esc(it.id) + '</h2><div class="sub">' + esc(it.suite) + " · turn " + (it.turn + 1) + (it.label ? " · " + esc(it.label) : "") +
+    (it.tools.length ? " · tools: " + esc(it.tools.join(", ")) : "") + "</div>";
+  h += '<details class="req"' + (it.new.length <= 2 ? " open" : "") + "><summary>Request · " + it.new.length + " message" + (it.new.length === 1 ? "" : "s") +
+    (it.skipped ? " new since the previous turn (" + it.skipped + " earlier not repeated)" : "") + "</summary>" +
+    it.new.map(function (m) {
+      var c = text(m.content || "");
+      return '<div class="msg ' + esc(m.role) + '"><div class="role">' + esc(m.role) + "</div>" + (m.role === "tool" ? '<div class="raw">' + esc(c.slice(0, 6000)) + "</div>" : body(c.length > 20000 ? c.slice(0, 20000) + "\n\n… (" + (c.length - 20000) + " more characters)" : c)) +
+        (m.tool_calls || []).map(function (x) { return '<div class="calls"><pre>' + esc(x.function.name + "(" + x.function.arguments + ")") + "</pre></div>"; }).join("") + "</div>";
+    }).join("") + "</details>";
+  h += '<div class="cols" style="--n:' + D.targets.length + '">' + it.replies.map(function (r, i) { return reply(r, i, D.targets[i]); }).join("") + "</div></section>";
+  return h;
+}
+function nav() {
+  var q = (document.getElementById("q").value || "").toLowerCase();
+  document.getElementById("list").innerHTML = D.items.map(function (it, n) {
+    var bad = it.replies.some(function (r) { return r && r.verdict !== "pass"; });
+    var flagged = it.replies.some(function (r) { return r && r.degen && r.degen.flags && r.degen.flags.length; });
+    if (q && !(it.id.toLowerCase().indexOf(q) >= 0 || (q === "failed" && bad) || (q === "flagged" && flagged))) return "";
+    return '<a href="#t' + n + '" title="' + esc(it.id) + '"><span class="tid">' + esc(it.id) + '</span><span class="dots">' + it.replies.map(function (r) { return '<span class="dot ' + (!r ? "na" : r.verdict === "pass" ? "" : "fail") + '"></span>'; }).join("") + "</span></a>";
+  }).join("");
+}
+function draw() {
+  header(); nav();
+  var main = document.getElementById("main");
+  main.innerHTML = D.items.map(item).join("");
+  if (!RAW && window.pbRenderMath) pbRenderMath(main);
+}
+document.getElementById("q").addEventListener("input", nav);
+draw();
+</script>
+</body>
+</html>

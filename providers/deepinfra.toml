@@ -1,0 +1,26 @@
+name = "DeepInfra"
+base_url = "https://api.deepinfra.com/v1/openai"
+key_env = "DEEPINFRA_API_KEY"
+docs = "https://deepinfra.com/pricing"
+
+[models]
+"glm-5.3-flash" = "zai-org/GLM-5.3-Flash"
+"deepseek-v4.1-flash" = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+"gemma-4-31b" = "google/gemma-4-31B-it"
+"glm-5.3" = "zai-org/GLM-5.3"
+"kimi-k3.1-pro" = "moonshotai/Kimi-K3.1-Pro"
+"kimi-k3" = "moonshotai/Kimi-K3"
+
+[extra_body]
+"gemma-4-31b" = { chat_template_kwargs = { enable_thinking = true } }
+
+[[pricing]]
+source = "models_endpoint"         # some providers put prices in GET /models
+
+[[pricing]]
+source = "openrouter"              # this provider's listing on OpenRouter (same model, same provider)
+provider = "DeepInfra"
+tag = "deepinfra"
+
+[[pricing]]
+source = "manual"

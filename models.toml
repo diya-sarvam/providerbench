@@ -1,0 +1,45 @@
+# Canonical models. A provider file maps these names to its own model ids.
+#
+#   label       shown in the UI
+#   context     published context window, tokens
+#   openrouter  OpenRouter slug, used as a price source and to read each provider's quantization
+#   aliases     other spellings providers use; `pb provider add` matches /models ids against these
+#
+# A model that is not listed here can still be run as  provider:<raw model id>.
+
+[models."glm-5.3-flash"]
+label = "GLM-5.3 Flash"
+context = 1048576
+openrouter = "z-ai/glm-5.3-flash"
+aliases = ["glm5.3-flash", "glm-5p3-flash", "zai-org/glm-5.3-flash", "zai-org/GLM-5.3-Flash"]
+
+[models."deepseek-v4.1-flash"]
+label = "DeepSeek V4.1 Flash"
+context = 1048576
+openrouter = "deepseek/deepseek-v4.1-flash-1017"
+aliases = ["deepseekv4.1-flash-1017", "deepseek-v4.1-flash-1017", "deepseek-v4p1-flash-1017",
+           "deepseek-ai/deepseek-v4.1-flash", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
+
+[models."gemma-4-31b"]
+label = "Gemma 4 31B"
+context = 262144
+openrouter = "google/gemma-4-31b-it"
+aliases = ["gemma4", "gemma-4-31b-it", "google/gemma-4-31b-it", "google/gemma-4-31B-it"]
+
+[models."glm-5.3"]
+label = "GLM-5.3"
+context = 1048576
+openrouter = "z-ai/glm-5.3"
+aliases = ["glm5.3", "zai-org/glm-5.3", "zai-org/GLM-5.3", "glm-5p3"]
+
+[models."kimi-k3.1-pro"]
+label = "Kimi K3.1 Pro"
+context = 1048576
+openrouter = "moonshotai/kimi-k3.1-pro"
+aliases = ["moonshotai/kimi-k3.1-pro", "moonshotai/Kimi-K3.1-Pro", "kimi-k3p1-pro"]
+
+[models."kimi-k3"]
+label = "Kimi K3"
+context = 1048576
+openrouter = "moonshotai/kimi-k3"
+aliases = ["moonshotai/kimi-k3", "moonshotai/Kimi-K3"]
