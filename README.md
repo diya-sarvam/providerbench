@@ -18,11 +18,12 @@ Or from the terminal:
 
 Python 3.11+, standard library only. Nothing to install.
 
-## Four ways to test
+## Five ways to test
 
 | Scenario | What you control | What it tells you |
 |---|---|---|
 | **Trace replay** | Built-in SWE-smith agent sessions; sessions, steps per session, min/max context | How fast and how cheaply each provider serves real agent traffic, warm-cache behaviour on later steps, and protocol or degeneration failures |
+| **Long agent session** | One long real coding-agent session (start context, e.g. 64k), framed like a production agent (~20k prompt + MCP tools), then heavy requests per turn (root cause, full fix, tests, PR text; up to 64k output). Open loop (identical requests) or closed loop (model's own replies) | Decode speed, thinking share, cache reuse and cost for long outputs at long context |
 | **Your data** | Your own sessions or prompts as JSONL (Data tab, or `--data`); sessions or requests, steps per session, context range | The same as trace replay, on your real traffic |
 | **Synthetic workload** | **ISL, OSL, cache-hit target, single or multi-turn, number of turns**, new input per turn | Pure serving: TTFT, tok/s, throughput, cache hits and cost for a request shape you define |
 | **Quality benchmarks** | BFCL tool calling, MATH-500 + AIME, GPQA-Diamond, serving-bug probes | Known-answer accuracy, so quantization or template problems show up |

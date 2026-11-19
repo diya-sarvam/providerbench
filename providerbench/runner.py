@@ -361,21 +361,41 @@ class Run:
             self.state[tgt.key]["finished"] = time.time()
 
     def _run_group(self, tgt, group, out):
+        prev_sent, prev_msg = None, None
         for i, task in enumerate(group):
             if i:
                 time.sleep(SETTLE_S)
-            rec = self._one(tgt, task)
-            with LOCK:
-                st = self.state[tgt.key]
-                st["records"].append(rec)
-                st["done"] += 1
-                if rec.get("cost_usd"):
-                    st["spend_usd"] += rec["cost_usd"]
-                    self.spend += rec["cost_usd"]
-                out.write(json.dumps(rec) + "\n")
-                out.flush()
+            override = None
+            if (task.meta or {}).get("loop") == "closed" and i:
+                if prev_sent is None:            # the previous turn failed: a closed loop cannot go on
+                    rec = dict(task_id=task.id, suite=task.suite, group=task.group, turn=task.turn, meta=task.meta,
+                               t=time.time(), graded=SUITES[task.suite].graded, verdict="skipped", codes=[],
+                               error="previous turn failed", retries=0)
+                    self._store(tgt, rec, out)
+                    continue
+                from .suites.session import closed_loop_messages
+                override = closed_loop_messages(prev_sent, prev_msg, task.expect["request"])
+            rec = self._one(tgt, task, override)
+            sent = rec.pop("_sent", None)
+            if override is not None:
+                rec["closed_loop_added"] = override[len(prev_sent):]
+            ok = not rec.get("error") and rec.get("verdict") != "skipped"
+            prev_sent = sent if ok else None
+            prev_msg = {"content": rec.get("content") or "", "tool_calls": rec.get("tool_calls") or []} if ok else None
+            self._store(tgt, rec, out)
 
-    def _one(self, tgt, task):
+    def _store(self, tgt, rec, out):
+        with LOCK:
+            st = self.state[tgt.key]
+            st["records"].append(rec)
+            st["done"] += 1
+            if rec.get("cost_usd"):
+                st["spend_usd"] += rec["cost_usd"]
+                self.spend += rec["cost_usd"]
+            out.write(json.dumps(rec) + "\n")
+            out.flush()
+
+    def _one(self, tgt, task, override=None):
         base = {"task_id": task.id, "suite": task.suite, "group": task.group, "turn": task.turn,
                 "meta": task.meta, "t": time.time(), "graded": SUITES[task.suite].graded}
         st = self.state[tgt.key]
@@ -388,7 +408,7 @@ class Run:
                         error="stopped" if stopped else "budget", retries=0)
         st["inflight"][task.id] = time.time()
         try:
-            return self._send(tgt, task, base)
+            return self._send(tgt, task, base, override)
         finally:
             st["inflight"].pop(task.id, None)
 
@@ -405,8 +425,13 @@ class Run:
         else:
             raise ValueError("action must be pause, resume or stop")
 
-    def _send(self, tgt, task, base):
-        body = {"messages": with_nonce(task.messages, self.id), "max_tokens": task.max_tokens}
+    def _send(self, tgt, task, base, override=None):
+        body = {"messages": override if override is not None else with_nonce(task.messages, self.id),
+                "max_tokens": task.max_tokens}
+        limit = (task.expect or {}).get("context_limit")
+        if limit:                                # keep prompt + output inside the context window
+            room = int(limit - len(json.dumps(body["messages"])) / 3.6 - 512)
+            body["max_tokens"] = max(1024, min(task.max_tokens, room))
         if task.tools:
             body["tools"] = task.tools
         for k in ("temperature", "top_p"):
@@ -454,7 +479,7 @@ class Run:
             v["verdict"] = "fail"
             why = "degenerate: " + ", ".join(degen["flags"])
             v["detail"] = (v.get("detail") + "; " + why) if v.get("detail") else why
-        return dict(base, **v, degen=degen, retries=retries, status=reply.get("status"), error=reply.get("error"),
+        return dict(base, **v, degen=degen, _sent=body["messages"], retries=retries, status=reply.get("status"), error=reply.get("error"),
                     finish_reason=reply.get("finish_reason"),
                     **{k: reply.get(k) for k in ("ttft_ms", "ttfa_ms", "thinking_ms", "e2e_ms", "tps", "connect_ms",
                                                  "prompt_tokens", "cached_tokens", "completion_tokens",
@@ -720,7 +745,9 @@ def trace(run_id, target, task_id):
     out = {"run": run_id, "target": target, "record": rec}
     if task:
         tg = next((t for t in snap.get("targets", []) if t["target"] == target), {})
-        body = {"model": tg.get("model_id"), "messages": with_nonce(task["messages"], run_id),
+        sent = (_closed_messages(run_id, target, task, _tasks_of(run_id))
+                if (task.get("meta") or {}).get("loop") == "closed" and task.get("turn") else with_nonce(task["messages"], run_id))
+        body = {"model": tg.get("model_id"), "messages": sent,
                 "max_tokens": task["max_tokens"], "stream": True}
         if task.get("tools"):
             body["tools"] = task["tools"]
@@ -893,8 +920,24 @@ def export_labels():
 
 # --------------------------------------------------------------- compare and readable exports
 
+def _closed_messages(run_id, target, task, tasks):
+    """A closed-loop turn's real request: turn 0's messages + what each later turn added (per provider)."""
+    group = [t for t in tasks.values() if t.get("group") == task.get("group")]
+    first = next((t for t in group if t.get("turn") == 0), None)
+    if not first:
+        return []
+    msgs = with_nonce(first["messages"], run_id)
+    recs = {r["task_id"]: r for r in _all_records(run_id, target)} if target else {}
+    for t in sorted(group, key=lambda x: x.get("turn", 0)):
+        if 0 < t.get("turn", 0) <= task.get("turn", 0):
+            msgs = msgs + ((recs.get(t["id"]) or {}).get("closed_loop_added") or [])
+    return msgs
+
+
 def _new_messages(task, tasks):
     """Messages added since the previous turn of the same session (all of them for turn 0)."""
+    if (task.get("meta") or {}).get("loop") == "closed" and task.get("turn"):
+        return [{"role": "user", "content": (task.get("expect") or {}).get("request", "")}], -1
     msgs = task["messages"]
     if task.get("turn") and task.get("group"):
         prev = [t for t in tasks.values() if t.get("group") == task["group"] and t.get("turn") == task["turn"] - 1]

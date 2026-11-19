@@ -153,3 +153,28 @@ class DegenScopeTests(unittest.TestCase):
         self.assertIsNone(degeneration([], loop, "stop", "synthetic"))          # random prompts: off
         for suite in ("agentic", "custom", "math", "gpqa", "tools", "robustness"):
             self.assertIn("loop:content", degeneration([], loop, "stop", suite)["flags"], suite)
+
+
+class SessionSuiteTests(unittest.TestCase):
+    def test_closed_loop_messages_and_tool_answers(self):
+        from providerbench.suites.session import closed_loop_messages
+        prev = [{"role": "system", "content": "s"}, {"role": "user", "content": "task 1"}]
+        reply = {"content": "Writing the fix.", "tool_calls": [
+            {"id": "c1", "type": "function", "function": {"name": "str_replace_editor", "arguments": '{"command": "create", "path": "/testbed/fix.py", "file_text": "x"}'}},
+            {"id": "c2", "type": "function", "function": {"name": "bash", "arguments": '{"command": "pytest"}'}}]}
+        msgs = closed_loop_messages(prev, reply, "task 2")
+        self.assertEqual([m["role"] for m in msgs], ["system", "user", "assistant", "tool", "tool", "user"])
+        self.assertIn("created successfully", msgs[3]["content"])
+        self.assertIn("Not available", msgs[4]["content"])
+        self.assertEqual(msgs[-1]["content"], "task 2")
+
+    def test_cut_at_clean_boundary(self):
+        from providerbench.suites.session import cut_at
+        msgs = [{"role": "user", "content": "u" * 3600},
+                {"role": "assistant", "content": "", "tool_calls": [{"id": "a", "type": "function", "function": {"name": "bash", "arguments": "{}"}}]},
+                {"role": "tool", "tool_call_id": "a", "content": "r" * 3600},
+                {"role": "assistant", "content": "a" * 3600},
+                {"role": "user", "content": "u" * 3600}]
+        k = cut_at(msgs, 2600)
+        self.assertIn(msgs[k - 1]["role"], ("tool", "assistant"))
+        self.assertLessEqual(k, 4)

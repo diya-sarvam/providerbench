@@ -5,8 +5,9 @@ from .math import MathSuite
 from .gpqa import GPQASuite
 from .robustness import RobustnessSuite
 from .synthetic import SyntheticSuite
+from .session import SessionSuite
 
-SUITES = {s.name: s for s in (AgenticSuite(), CustomSuite(), SyntheticSuite(), ToolsSuite(), MathSuite(), GPQASuite(), RobustnessSuite())}
+SUITES = {s.name: s for s in (AgenticSuite(), SessionSuite(), CustomSuite(), SyntheticSuite(), ToolsSuite(), MathSuite(), GPQASuite(), RobustnessSuite())}
 
 
 def get(name):
@@ -19,6 +20,8 @@ def get(name):
 SCENARIOS = [
     {"id": "replay", "title": "Trace replay",
      "blurb": "Real agent sessions from SWE-smith, replayed step by step."},
+    {"id": "session", "title": "Long agent session",
+     "blurb": "One long coding-agent session, then heavy requests: long reasoning and output at 64k+ context."},
     {"id": "custom", "title": "Your data",
      "blurb": "Your own sessions or prompts (JSONL), replayed against both providers."},
     {"id": "synthetic", "title": "Synthetic workload",
